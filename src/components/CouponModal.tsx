@@ -1,19 +1,29 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { Coupon } from '../types';
 import { createCoupon, updateCoupon } from '../api/coupons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
+
 
 interface CouponModalProps {
   coupon?: Coupon;
   onClose: () => void;
 }
 
+interface CouponName {
+  name: string;
+  isUsed: boolean;
+}
+
 export default function CouponModal({ coupon, onClose }: CouponModalProps) {
   const queryClient = useQueryClient();
+  const [couponNames, setCouponNames] = useState<CouponName[]>(
+    coupon?.name || [{ name: '', isUsed: false }]
+  );
   const [formData, setFormData] = useState({
-    name: coupon?.name[0]?.name || '',
+    name: coupon?.name || [],
     description: coupon?.description || '',
     company: coupon?.company || '',
     discount: coupon?.discount || '',
@@ -23,21 +33,92 @@ export default function CouponModal({ coupon, onClose }: CouponModalProps) {
     products: coupon?.products?.join(', ') || '',
     remainingCoupons: coupon?.remainingCoupons || '',
     totalCoupons: coupon?.totalCoupons || '',
-    imageUrl: coupon?.images[0] || '',
   });
+  const [images, setImages] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>(coupon?.images || []);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setImages([...images, ...files]);
+
+    // Create preview URLs for new images
+    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+    setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = [...images];
+    const newPreviewUrls = [...previewUrls];
+    
+    // If it's a new image (not from existing coupon)
+    if (index >= previewUrls.length - images.length) {
+      newImages.splice(index - (previewUrls.length - images.length), 1);
+    }
+    
+    newPreviewUrls.splice(index, 1);
+    setImages(newImages);
+    setPreviewUrls(newPreviewUrls);
+  };
+
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const namesFromExcel = json
+        .flat()
+        .filter((val) => typeof val === 'string' && val.trim() !== '')
+        .map((name) => ({ name: name.trim(), isUsed: false }));
+
+      if (namesFromExcel.length) {
+        setCouponNames(namesFromExcel);
+        toast.success(`${namesFromExcel.length} coupon names loaded from Excel`);
+      } else {
+        toast.error('No valid coupon names found in the Excel file.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const mutation = useMutation({
     mutationFn: (data: any) => {
-      const payload = {
-        ...data,
-        name: [{ name: data.name, isUsed: false }],
-        category: data.category.split(',').map((c: string) => c.trim()),
-        products: data.products.split(',').map((p: string) => p.trim()),
-        images: [data.imageUrl],
-      };
+      const formData = new FormData();
+      // console.log(data);
+
+      // formData.append('name', JSON.stringify(couponNames));
+      
+      // Append all form fields
+      Object.entries(data).forEach(([key, value]) => {
+        if (key === 'category' || key === 'products') {
+          // Split by comma and trim each item to create array of strings
+          const arrayValue = (value as string).split(',').map((item: string) => item.trim());
+          formData.append(key, JSON.stringify(arrayValue));
+        } else if (key === 'name') {
+          formData.append(key, JSON.stringify(couponNames));
+        } else {
+          formData.append(key, String(value));
+        }
+      });
+
+      console.log(formData.get('name'));
+      
+
+      // Append all images
+      images.forEach((image) => {
+        formData.append('images', image);
+      });
+
       return coupon
-        ? updateCoupon(coupon._id, payload)
-        : createCoupon(payload);
+        ? updateCoupon(coupon._id, formData)
+        : createCoupon(formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coupons'] });
@@ -55,6 +136,23 @@ export default function CouponModal({ coupon, onClose }: CouponModalProps) {
     mutation.mutate(formData);
   };
 
+  const addCouponName = () => {
+    console.log(couponNames);
+    setCouponNames([...couponNames, { name: '', isUsed: false }]);
+  };
+
+  const removeCouponName = (index: number) => {
+    if (couponNames.length > 1) {
+      setCouponNames(couponNames.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateCouponName = (index: number, value: string) => {
+    const newCouponNames = [...couponNames];
+    newCouponNames[index] = { ...newCouponNames[index], name: value };
+    setCouponNames(newCouponNames);
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl w-1/2 h-[80%] overflow-auto">
@@ -69,18 +167,54 @@ export default function CouponModal({ coupon, onClose }: CouponModalProps) {
 
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-4">
+            {/* Coupon Names */}
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Name
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Coupon Names
               </label>
-              <input
-                type="text"
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                required
-              />
+              <div className="space-y-2">
+                {couponNames.map((couponName, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={couponName.name}
+                      onChange={(e) => updateCouponName(index, e.target.value)}
+                      className="flex-1 rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      placeholder={`Coupon Name ${index + 1}`}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeCouponName(index)}
+                      className="p-1 text-red-500 hover:text-red-700"
+                      disabled={couponNames.length === 1}
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addCouponName}
+                  className="mt-2 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Another Coupon Name
+                </button>
+
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Upload Excel File (.xlsx) for Coupon Names
+                  </label>
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    onChange={handleExcelUpload}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>
@@ -212,17 +346,37 @@ export default function CouponModal({ coupon, onClose }: CouponModalProps) {
             </div>
 
             <div>
-              <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700">
-                Image URL
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Images
               </label>
-              <input
-                type="url"
-                id="imageUrl"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                required
-              />
+              <div className="grid grid-cols-3 gap-4">
+                {previewUrls.map((url, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <label className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-500">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <Plus className="h-8 w-8 text-gray-400" />
+                </label>
+              </div>
             </div>
           </div>
 

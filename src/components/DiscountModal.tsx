@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { Discount } from '../types';
 import { createDiscount, updateDiscount } from '../api/discounts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -23,20 +23,63 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
     products: discount?.products?.join(', ') || '',
     remainingCoupons: discount?.remainingCoupons || '',
     totalCoupons: discount?.totalCoupons || '',
-    imageUrl: discount?.images[0] || '',
   });
+  const [images, setImages] = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<string[]>(discount?.images || []);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setImages([...images, ...files]);
+
+    // Create preview URLs for new images
+    const newPreviewUrls = files.map(file => URL.createObjectURL(file));
+    setPreviewUrls([...previewUrls, ...newPreviewUrls]);
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = [...images];
+    const newPreviewUrls = [...previewUrls];
+    
+    // If it's a new image (not from existing discount)
+    if (index >= previewUrls.length - images.length) {
+      newImages.splice(index - (previewUrls.length - images.length), 1);
+    }
+    
+    newPreviewUrls.splice(index, 1);
+    setImages(newImages);
+    setPreviewUrls(newPreviewUrls);
+  };
 
   const mutation = useMutation({
     mutationFn: (data: any) => {
-      const payload = {
-        ...data,
-        category: data.category.split(',').map((c: string) => c.trim()),
-        products: data.products.split(',').map((p: string) => p.trim()),
-        images: [data.imageUrl],
-      };
-      return discount
-        ? updateDiscount(discount._id, payload)
-        : createDiscount(payload);
+      const formData = new FormData();
+
+      // Append all form fields
+      Object.entries(data).forEach(([key, value]) => {
+        // if (key === 'category' || key === 'products') {
+        //   const arrayValue = String(value)
+        //     .split(',')
+        //     .map((item) => item.trim());  // Split and trim
+        //   formData.append(key, JSON.stringify(arrayValue));  // Stringify array
+        // } else {
+          formData.append(key, String(value));  // Normal fields
+        // }
+      });
+
+      // Append all images
+      images.forEach((image) => {
+        formData.append('images', image);
+      });
+
+      // ❌ Don't do: const discountData = Object.fromEntries(formData.entries());
+      // ❌ Don't parse arrays here
+      // ✅ Just send FormData directly!
+
+      if (discount) {
+        return updateDiscount(discount._id, formData as Partial<Discount>);  // send FormData directly
+      } else {
+        return createDiscount(formData as Partial<Discount>);               // send FormData directly
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['discounts'] });
@@ -44,6 +87,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
       onClose();
     },
   });
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +118,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -86,7 +131,8 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="mt-1 block w-full border p-1 text-md rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -100,6 +146,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 value={formData.company}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                 className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -113,6 +160,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 value={formData.discount}
                 onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
                 className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -127,6 +175,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                   value={formData.startDate}
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  required
                 />
               </div>
               <div>
@@ -139,6 +188,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                   value={formData.endDate}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  required
                 />
               </div>
             </div>
@@ -153,6 +203,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -166,6 +217,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                 value={formData.products}
                 onChange={(e) => setFormData({ ...formData, products: e.target.value })}
                 className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                required
               />
             </div>
 
@@ -180,6 +232,7 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                   value={formData.remainingCoupons}
                   onChange={(e) => setFormData({ ...formData, remainingCoupons: e.target.value })}
                   className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  required
                 />
               </div>
               <div>
@@ -192,21 +245,43 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
                   value={formData.totalCoupons}
                   onChange={(e) => setFormData({ ...formData, totalCoupons: e.target.value })}
                   className="mt-1 block w-full rounded-md border p-1 text-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="imageUrl" className="block text-sm font-medium text-gray-700">
-                Image URL
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Images
               </label>
-              <input
-                type="url"
-                id="imageUrl"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                className="mt-1 block w-full rounded-md border p-1 text-md   border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              />
+              <div className="grid grid-cols-3 gap-4">
+                {previewUrls.map((url, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={url}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                <label className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-500">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <Plus className="h-8 w-8 text-gray-400" />
+                </label>
+              </div>
             </div>
           </div>
 
@@ -220,9 +295,10 @@ export default function DiscountModal({ discount, onClose }: DiscountModalProps)
             </button>
             <button
               type="submit"
-              className="rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+              disabled={mutation.isPending}
+              className="rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
             >
-              {discount ? 'Save Changes' : 'Add Discount'}
+              {mutation.isPending ? 'Saving...' : discount ? 'Save Changes' : 'Add Discount'}
             </button>
           </div>
         </form>

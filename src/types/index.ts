@@ -13,6 +13,7 @@ export interface User {
   approvalDate?: Date;
   buddyId?: string;
   buddyCredit?: number;
+  isBanned?: boolean;
 }
 
 export interface UserRequest {

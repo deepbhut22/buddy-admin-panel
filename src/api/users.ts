@@ -19,10 +19,10 @@ export const approveUser = async (requestId: string) => {
   return response.data;
 };
 
-export const rejectUser = async (requestId: string, rejectionReason: string) => {
+export const rejectUser = async (requestId: string, reason: string) => {
   const response = await axios.post(
     `${API_URL}/admin/requests/${requestId}/reject`,
-    { rejectionReason },
+    { reason },
     { withCredentials: true }
   );
   return response.data;
@@ -31,6 +31,24 @@ export const rejectUser = async (requestId: string, rejectionReason: string) => 
 export const deleteUser = async (userId: string) => {
   const response = await axios.delete(
     `${API_URL}/admin/users/${userId}`,
+    { withCredentials: true }
+  );
+  return response.data;
+};
+
+export const banUser = async (userId: string, banReason: string) => {
+  const response = await axios.post(
+    `${API_URL}/admin/users/${userId}/ban`,
+    { banReason },
+    { withCredentials: true }
+  );
+  return response.data;
+};
+
+export const unbanUser = async (userId: string) => {
+  const response = await axios.post(
+    `${API_URL}/admin/users/${userId}/unban`,
+    {},
     { withCredentials: true }
   );
   return response.data;

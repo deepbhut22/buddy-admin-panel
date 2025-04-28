@@ -1,9 +1,10 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { approveUser, rejectUser, deleteUser } from '../api/users';
+import { approveUser, rejectUser, deleteUser, banUser, unbanUser } from '../api/users';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { User } from '../types';
+
 interface UserModalProps {
   user: User;
   onClose: () => void;
@@ -13,7 +14,6 @@ export default function UserModal({ user, onClose }: UserModalProps) {
   const queryClient = useQueryClient();
   const [rejectionReason, setRejectionReason] = React.useState('');
   const [showDoc, setShowDoc] = React.useState(false);
-
 
   const approveMutation = useMutation({
     mutationFn: () => approveUser(user._id),
@@ -42,6 +42,24 @@ export default function UserModal({ user, onClose }: UserModalProps) {
     },
   });
 
+  const banMutation = useMutation({
+    mutationFn: () => banUser(user._id, ''),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('User banned successfully');
+      onClose();
+    },
+  });
+
+  const unbanMutation = useMutation({
+    mutationFn: () => unbanUser(user._id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast.success('User unbanned successfully');
+      onClose();
+    },
+  });
+
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
@@ -60,6 +78,14 @@ export default function UserModal({ user, onClose }: UserModalProps) {
                 <p><span className="font-medium">Name:</span> {user.firstName} {user.lastName}</p>
                 <p><span className="font-medium">Email:</span> {user.email}</p>
                 <p><span className="font-medium">Phone:</span> {user.phoneNumber}</p>
+                {user.approvalDate && (
+                  <p>
+                    <span className="font-medium">Status:</span>{' '}
+                    <span className={`${user.isBanned ? 'text-red-600' : 'text-green-600'}`}>
+                      {user.isBanned ? 'Banned' : 'Active'}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
             <div>
@@ -67,7 +93,12 @@ export default function UserModal({ user, onClose }: UserModalProps) {
               <div className="mt-2 space-y-2">
                 <p><span className="font-medium">Service:</span> {user.service}</p>
                 <p><span className="font-medium">Category:</span> {user.category}</p>
-                {/* <p><span className="font-medium">Requested:</span> {new Date(user.requestedAt).toLocaleDateString()}</p> */}
+                {user.approvalDate && (
+                  <p>
+                    <span className="font-medium">Approved On:</span>{' '}
+                    {new Date(user.approvalDate).toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -75,10 +106,12 @@ export default function UserModal({ user, onClose }: UserModalProps) {
           <div className="mt-6">
             <h3 className="text-sm font-medium text-gray-500">Documents</h3>
             <div className="mt-2">
-              <button onClick={() => window.open(user.document.url, '_blank')}>
+              <button 
+                onClick={() => window.open(user.document.url, '_blank')}
+                className="text-indigo-600 hover:text-indigo-500"
+              >
                 Open Document
               </button>
-
             </div>
           </div>
 
@@ -105,7 +138,7 @@ export default function UserModal({ user, onClose }: UserModalProps) {
             >
               Close
             </button>
-            {!user.approvalDate && (
+            {!user.approvalDate ? (
               <>
                 <button
                   type="button"
@@ -122,6 +155,22 @@ export default function UserModal({ user, onClose }: UserModalProps) {
                   Approve
                 </button>
               </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Are you sure you want to ${user.isBanned ? 'unban' : 'ban'} this user?`)) {
+                    user.isBanned ? unbanMutation.mutate() : banMutation.mutate();
+                  }
+                }}
+                className={`rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm ${
+                  user.isBanned
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {user.isBanned ? 'Unban User' : 'Ban User'}
+              </button>
             )}
             <button
               type="button"
