@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Search, Filter, ArrowUpDown, Calendar, Tag, Building, Percent } from 'lucide-react';
+import { Plus, ArrowUpDown, Calendar, Tag, Building, Percent } from 'lucide-react';
 import DiscountModal from '../components/DiscountModal';
 import { fetchDiscounts } from '../api/discounts';
 import { Discount } from '../types';
@@ -12,6 +12,7 @@ type SortOrderType = 'asc' | 'desc';
 export default function Discounts() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDiscount, setSelectedDiscount] = useState(null);
+  const [refresh, setRefresh] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     company: '',
@@ -65,6 +66,10 @@ export default function Discounts() {
       month: 'short', 
       day: 'numeric' 
     });
+  };
+
+  const handleRefresh = () => {
+    setRefresh(prev => !prev);
   };
 
   return (

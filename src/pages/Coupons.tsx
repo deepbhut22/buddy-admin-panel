@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, ArrowUpDown, Calendar, Tag, Building, Percent, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, ArrowUpDown, Calendar, Tag, Building, Percent, CheckCircle, XCircle, RefreshCcw } from 'lucide-react';
 import CouponModal from '../components/CouponModal';
 import { fetchCoupons } from '../api/coupons';
 import { Coupon } from '../types';
@@ -16,6 +16,7 @@ interface CouponName {
 export default function Coupons() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState<Coupon | null>(null);
+  const [refresh, setRefresh] = useState(false);
   const [filters, setFilters] = useState({
     search: '',
     company: '',
@@ -34,11 +35,15 @@ export default function Coupons() {
 
   useEffect(() => {
     fetchData();
-  }, [filters]);
+  }, [refresh]);
 
   useEffect(() => {
     fetchData();
-  }, [showAddModal]);
+  }, [filters, showAddModal, refresh]);
+
+  useEffect(() => {
+    fetchData();
+  }, [showAddModal, refresh]);
 
   const handleStatusChange = (status: StatusType) => {
     setFilters({ ...filters, status });
@@ -55,6 +60,10 @@ export default function Coupons() {
       // Otherwise, set the new sort field with default ascending order
       setFilters({ ...filters, sortBy, sortOrder: 'asc' });
     }
+  };
+
+  const handleRefresh = () => {
+    setRefresh(prev => !prev);
   };
 
   // Function to determine coupon status
@@ -102,6 +111,14 @@ export default function Coupons() {
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Coupon
+          </button>
+          <button
+            style={{ marginLeft: '10px' }}
+            onClick={handleRefresh}
+            className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+          >
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            refresh
           </button>
         </div>
       </div>
@@ -157,7 +174,6 @@ export default function Coupons() {
 
       <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {coupons?.map((coupon) => {
-          console.log(coupon);
           
           const status = getCouponStatus(coupon);
           const counts = getCouponCounts(coupon);

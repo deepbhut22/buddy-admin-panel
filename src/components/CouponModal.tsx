@@ -91,25 +91,20 @@ export default function CouponModal({ coupon, onClose }: CouponModalProps) {
   const mutation = useMutation({
     mutationFn: (data: any) => {
       const formData = new FormData();
-      // console.log(data);
-
-      // formData.append('name', JSON.stringify(couponNames));
-      
+      // console.log(data)      
       // Append all form fields
       Object.entries(data).forEach(([key, value]) => {
-        if (key === 'category' || key === 'products') {
-          // Split by comma and trim each item to create array of strings
-          const arrayValue = (value as string).split(',').map((item: string) => item.trim());
-          formData.append(key, JSON.stringify(arrayValue));
-        } else if (key === 'name') {
+        // if (key === 'category' || key === 'products') {
+        //   // Split by comma and trim each item to create array of strings
+        //   const arrayValue = (value as string).split(',').map((item: string) => item.trim());
+        //   formData.append(key, JSON.stringify(arrayValue));
+        if (key === 'name') {
           formData.append(key, JSON.stringify(couponNames));
         } else {
           formData.append(key, String(value));
         }
-      });
-
-      console.log(formData.get('name'));
-      
+        // }
+      });            
 
       // Append all images
       images.forEach((image) => {
